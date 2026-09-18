@@ -1,0 +1,259 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Organigrama Interactivo - Prensa</title>
+<style>
+  :root{
+    --bg:#f7f7f8; --panel:#ffffff; --line:#666; --text:#222; --muted:#666;
+    --occupied:#f6d2aa; --vacant:#dcdcdc; --partial:#fff2ad; --accent:#e87518;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:Arial,Helvetica,sans-serif;background:var(--bg);color:var(--text)}
+  header{padding:14px 16px;background:#fff;border-bottom:1px solid #ddd;position:sticky;top:0;z-index:10}
+  header .title{font-size:20px;font-weight:700}
+  header .sub{font-size:13px;color:var(--muted);margin-top:3px}
+  .toolbar{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+  button,select,input,textarea{font:inherit}
+  button{border:1px solid #bbb;background:#fff;border-radius:8px;padding:9px 12px;cursor:pointer;min-height:42px}
+  button.primary{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:700}
+  button.danger{border-color:#c66;color:#a33}
+  .layout{display:grid;grid-template-columns:minmax(0,1fr) 310px;height:calc(100vh - 122px)}
+  #stage{position:relative;overflow:hidden;touch-action:none;background:
+    radial-gradient(#ddd 1px,transparent 1px) 0 0/22px 22px}
+  #world{position:absolute;left:0;top:0;width:2600px;height:1500px;transform-origin:0 0}
+  svg{position:absolute;inset:0;width:100%;height:100%;overflow:visible}
+  .connector{stroke:#777;stroke-width:2;fill:none}
+  .node{position:absolute;width:190px;min-height:78px;border:1.5px solid #555;border-radius:10px;
+    padding:10px 10px 8px;text-align:center;user-select:none;cursor:grab;box-shadow:0 1px 2px #0001}
+  .node:active{cursor:grabbing}
+  .node.selected{outline:3px solid #e87518;outline-offset:2px}
+  .node .name{font-weight:700;font-size:14px;line-height:1.15}
+  .node .person{font-size:12px;font-weight:600;color:#333;margin-top:6px;min-height:15px}
+  .node .status{font-size:11px;color:#555;margin-top:6px}
+  .occupied{background:var(--occupied)} .vacant{background:var(--vacant)} .partial{background:var(--partial)}
+  aside{background:var(--panel);border-left:1px solid #ddd;padding:16px;overflow:auto}
+  aside h2{font-size:17px;margin:0 0 12px}
+  label{display:block;font-size:12px;font-weight:700;margin:12px 0 5px}
+  input,select,textarea{width:100%;padding:10px;border:1px solid #bbb;border-radius:8px;background:#fff}
+  textarea{min-height:90px;resize:vertical}
+  .actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}
+  .legend{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+  .legend span{font-size:11px;padding:5px 8px;border:1px solid #aaa;border-radius:6px}
+  .hint{font-size:12px;color:var(--muted);line-height:1.4;margin-top:12px}
+  .empty{color:#777;font-size:13px}
+  @media(max-width:850px){
+    .layout{grid-template-columns:1fr;height:auto}
+    #stage{height:65vh;min-height:420px}
+    aside{border-left:0;border-top:1px solid #ddd}
+  }
+</style>
+</head>
+<body>
+<header>
+  <div class="title">Organigrama de Rendición de Cuentas — Prensa</div>
+  <div class="sub">Editor visual editable. Podés mover puestos, cambiar nombres y crear nuevos puestos.</div>
+  <div class="toolbar">
+    <button class="primary" id="addBtn">+ Nuevo puesto</button>
+    <button id="centerBtn">Centrar organigrama</button>
+    <button id="zoomOut">−</button><button id="zoomIn">+</button>
+    <button id="exportBtn">Exportar cambios</button>
+    <button id="resetBtn">Restablecer original</button>
+  </div>
+</header>
+
+<div class="layout">
+  <main id="stage" aria-label="Área del organigrama">
+    <div id="world">
+      <svg id="links" aria-hidden="true"></svg>
+      <div id="nodes"></div>
+    </div>
+  </main>
+  <aside>
+    <h2>Editar puesto</h2>
+    <div id="editor" class="empty">Seleccioná un puesto para editarlo. También podés hacer doble clic sobre él.</div>
+    <div class="legend">
+      <span class="occupied">Asiento ocupado</span>
+      <span class="vacant">Asiento vacante</span>
+      <span class="partial">Parcialmente ocupado</span>
+    </div>
+    <div class="hint">
+      <b>PC:</b> arrastrá un puesto para moverlo; arrastrá el fondo para desplazar el organigrama; rueda para zoom.<br>
+      <b>Celular/tablet:</b> arrastrá puestos con el dedo y el fondo para desplazarte.
+    </div>
+  </aside>
+</div>
+
+<script>
+(() => {
+  const original = [
+    {id:"jefa",name:"Jefa de Prensa",parent:null,status:"occupied",x:1120,y:80},
+    {id:"editorMarca",name:"Editor de Contenidos de Marca",parent:"jefa",status:"occupied",x:220,y:350},
+    {id:"direccion",name:"Dirección Creativa",parent:"jefa",status:"occupied",x:780,y:350},
+    {id:"productora",name:"Productora Infobiz/InfoNegocios",parent:"jefa",status:"occupied",x:1330,y:350},
+    {id:"subeditores",name:"Subeditores",parent:"jefa",status:"partial",x:1880,y:350},
+    {id:"periodistaMarca",name:"Periodista de Contenidos de Marca",parent:"editorMarca",status:"occupied",x:60,y:650},
+    {id:"editoraMarcaAv",name:"Editora Audiovisual de Contenidos de Marca",parent:"editorMarca",status:"vacant",x:290,y:650},
+    {id:"editoraAv",name:"Editora audiovisual",parent:"direccion",status:"occupied",x:560,y:650},
+    {id:"disenadora",name:"Diseñadora",parent:"direccion",status:"occupied",x:800,y:650},
+    {id:"community",name:"Community Manager",parent:"direccion",status:"occupied",x:1040,y:650},
+    {id:"periodistas",name:"Periodistas",parent:"subeditores",status:"partial",x:1880,y:650}
+  ];
+
+  const stage=document.getElementById("stage"), world=document.getElementById("world");
+  const nodesEl=document.getElementById("nodes"), links=document.getElementById("links"), editor=document.getElementById("editor");
+  let data=JSON.parse(localStorage.getItem("org_prensa_v1")||"null") || structuredClone(original);
+  let selected=null, scale=0.72, panX=80, panY=20, drag=null, panning=null;
+
+  const statusLabel={occupied:"Asiento ocupado",vacant:"Asiento vacante",partial:"Parcialmente ocupado"};
+
+  function save(){ localStorage.setItem("org_prensa_v1",JSON.stringify(data)); }
+  function find(id){return data.find(n=>n.id===id)}
+  function children(id){return data.filter(n=>n.parent===id)}
+  function render(){
+    nodesEl.innerHTML="";
+    data.forEach(n=>{
+      const d=document.createElement("div");
+      d.className="node "+n.status+(selected===n.id?" selected":"");
+      d.dataset.id=n.id; d.style.left=n.x+"px"; d.style.top=n.y+"px";
+      d.innerHTML=`<div class="name"></div><div class="person"></div><div class="status"></div>`;
+      d.querySelector(".name").textContent=n.name;
+      d.querySelector(".person").textContent=n.person||"";
+      d.querySelector(".status").textContent=statusLabel[n.status]||"";
+      d.addEventListener("pointerdown",startNodeDrag);
+      d.addEventListener("click",()=>select(n.id));
+      d.addEventListener("dblclick",()=>select(n.id));
+      nodesEl.appendChild(d);
+    });
+    drawLinks();
+    applyTransform();
+    updateEditor();
+  }
+  function drawLinks(){
+    links.innerHTML="";
+    const byId=new Map(data.map(n=>[n.id,n]));
+    data.filter(n=>n.parent && byId.has(n.parent)).forEach(n=>{
+      const p=byId.get(n.parent);
+      const x1=p.x+95, y1=p.y+78, x2=n.x+95, y2=n.y;
+      const mid=(y1+y2)/2;
+      const path=document.createElementNS("http://www.w3.org/2000/svg","path");
+      path.setAttribute("class","connector");
+      path.setAttribute("d",`M ${x1} ${y1} L ${x1} ${mid} L ${x2} ${mid} L ${x2} ${y2}`);
+      links.appendChild(path);
+    });
+  }
+  function applyTransform(){world.style.transform=`translate(${panX}px,${panY}px) scale(${scale})`;}
+  function select(id){selected=id;render();}
+  function updateEditor(){
+    if(!selected){editor.innerHTML='<div class="empty">Seleccioná un puesto para editarlo. También podés hacer doble clic sobre él.</div>';return}
+    const n=find(selected); if(!n)return;
+    const parents=data.filter(x=>x.id!==n.id);
+    editor.innerHTML=`
+      <label for="ename">Nombre del puesto</label>
+      <input id="ename" value="">
+      <label for="eperson">Persona que ocupa el puesto</label>
+      <input id="eperson" placeholder="Nombre y apellido">
+      <label for="estatus">Estado</label>
+      <select id="estatus">
+        <option value="occupied">Asiento ocupado</option>
+        <option value="vacant">Asiento vacante</option>
+        <option value="partial">Parcialmente ocupado</option>
+      </select>
+      <label for="eparent">Depende de</label>
+      <select id="eparent"><option value="">Sin superior</option></select>
+      <label for="edesc">Funciones / notas</label>
+      <textarea id="edesc" placeholder="Podés agregar funciones o notas para este puesto."></textarea>
+      <div class="actions">
+        <button class="primary" id="applyEdit">Guardar cambios</button>
+        <button class="danger" id="deleteNode">Eliminar puesto</button>
+      </div>`;
+    document.getElementById("ename").value=n.name;
+    document.getElementById("eperson").value=n.person||"";
+    document.getElementById("estatus").value=n.status;
+    document.getElementById("edesc").value=n.desc||"";
+    const ps=document.getElementById("eparent");
+    parents.forEach(p=>{const o=document.createElement("option");o.value=p.id;o.textContent=p.name;if(n.parent===p.id)o.selected=true;ps.appendChild(o)});
+    document.getElementById("applyEdit").onclick=()=>{
+      n.name=document.getElementById("ename").value.trim()||"Puesto sin nombre";
+      n.person=document.getElementById("eperson").value.trim();
+      n.status=document.getElementById("estatus").value;
+      n.parent=document.getElementById("eparent").value||null;
+      n.desc=document.getElementById("edesc").value;
+      save();render();
+    };
+    document.getElementById("deleteNode").onclick=()=>{
+      if(!confirm("¿Eliminar este puesto y dejar sus puestos dependientes sin superior?"))return;
+      data.forEach(x=>{if(x.parent===n.id)x.parent=n.parent||null});
+      data=data.filter(x=>x.id!==n.id); selected=null; save(); render();
+    };
+  }
+  function startNodeDrag(e){
+    if(e.button!==undefined && e.button!==0)return;
+    e.stopPropagation();
+    const id=e.currentTarget.dataset.id;
+    select(id);
+    const n=find(id);
+    drag={id,startX:e.clientX,startY:e.clientY,origX:n.x,origY:n.y,pointerId:e.pointerId};
+    e.currentTarget.setPointerCapture?.(e.pointerId);
+  }
+  stage.addEventListener("pointermove",e=>{
+    if(drag){
+      const n=find(drag.id);
+      n.x=Math.max(0,drag.origX+(e.clientX-drag.startX)/scale);
+      n.y=Math.max(0,drag.origY+(e.clientY-drag.startY)/scale);
+      const el=nodesEl.querySelector(`[data-id="${drag.id}"]`);
+      if(el){el.style.left=n.x+"px";el.style.top=n.y+"px";drawLinks();}
+    } else if(panning){
+      panX=panning.origX+(e.clientX-panning.startX);
+      panY=panning.origY+(e.clientY-panning.startY);
+      applyTransform();
+    }
+  });
+  stage.addEventListener("pointerup",()=>{if(drag){save();drag=null} if(panning)panning=null});
+  stage.addEventListener("pointercancel",()=>{drag=null;panning=null});
+  stage.addEventListener("pointerdown",e=>{
+    if(e.target.closest(".node"))return;
+    panning={startX:e.clientX,startY:e.clientY,origX:panX,origY:panY};
+  });
+  stage.addEventListener("wheel",e=>{
+    e.preventDefault();
+    const rect=stage.getBoundingClientRect(), mx=e.clientX-rect.left, my=e.clientY-rect.top;
+    const old=scale, next=Math.max(.35,Math.min(1.6,scale*(e.deltaY<0?1.1:.9)));
+    panX=mx-(mx-panX)*(next/old); panY=my-(my-panY)*(next/old); scale=next; applyTransform();
+  },{passive:false});
+
+  function addNode(){
+    const id="n"+Date.now();
+    const parent=selected||"jefa";
+    const p=find(parent);
+    data.push({id,name:"Nuevo puesto",person:"",parent,status:"occupied",x:(p?p.x+230:900),y:(p?p.y+190:300),desc:""});
+    selected=id; save(); render();
+    setTimeout(()=>document.getElementById("ename")?.focus(),50);
+  }
+  document.getElementById("addBtn").onclick=addNode;
+  document.getElementById("zoomIn").onclick=()=>{scale=Math.min(1.6,scale*1.15);applyTransform()};
+  document.getElementById("zoomOut").onclick=()=>{scale=Math.max(.35,scale/1.15);applyTransform()};
+  document.getElementById("centerBtn").onclick=()=>{
+    const xs=data.map(n=>n.x), ys=data.map(n=>n.y);
+    const minX=Math.min(...xs), maxX=Math.max(...xs), minY=Math.min(...ys), maxY=Math.max(...ys);
+    const sw=stage.clientWidth, sh=stage.clientHeight;
+    const target=Math.min(1.0,Math.max(.45,Math.min((sw-80)/(maxX-minX+260),(sh-80)/(maxY-minY+180))));
+    scale=target; panX=(sw-(maxX-minX+190)*scale)/2-minX*scale; panY=30-minY*scale; applyTransform();
+  };
+  document.getElementById("resetBtn").onclick=()=>{
+    if(confirm("¿Restablecer el organigrama original? Se perderán los cambios guardados en este navegador.")){
+      data=structuredClone(original);selected=null;save();render();
+    }
+  };
+  document.getElementById("exportBtn").onclick=()=>{
+    const blob=new Blob([JSON.stringify(data,null,2)],{type:"application/json"});
+    const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download="organigrama_prensa_datos.json";a.click();
+    setTimeout(()=>URL.revokeObjectURL(a.href),1000);
+  };
+  render();
+  document.getElementById("centerBtn").click();
+})();
+</script>
+</body>
+</html>
